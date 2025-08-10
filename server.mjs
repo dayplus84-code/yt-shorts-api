@@ -13,18 +13,24 @@ function isShortLike(v) {
   const sec  = Number(v?.duration?.seconds ?? v?.duration_seconds ?? 0);
   return type.includes("short") || (sec > 0 && sec <= 62);
 }
+
 function mapVideo(v, region) {
+  const id = v?.id;
+  const publishedText = v?.published?.text ?? '';
   return {
-    videoId: v?.id,
+    videoId: id,
     title: v?.title?.text ?? v?.title ?? null,
-    views: v?.view_count ?? v?.viewCount ?? null,
+    views: pickViews(v),                 // ← 숫자
     channel: v?.author?.name ?? v?.author_text ?? v?.channel?.name ?? null,
-    publishedAt: v?.published?.text ?? null,
+    publishedText,                       // "2 weeks ago" 원문
+    ageHours: publishedTextToHours(publishedText),
     durationSec: v?.duration?.seconds ?? v?.duration_seconds ?? null,
-    url: v?.id ? `https://www.youtube.com/shorts/${v.id}` : null,
+    url: id ? `https://www.youtube.com/shorts/${id}` : null,
+    thumb: id ? thumb(id) : null,        // ← 썸네일 URL
     region
   };
 }
+
 
 app.get("/health", (_, res) => res.json({ ok: true }));
 
