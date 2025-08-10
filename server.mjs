@@ -119,3 +119,27 @@ app.get("/shorts/by-channel", async (req, res) => {
 app.listen(process.env.PORT || 3000, () =>
   console.log("YT Shorts API listening")
 );
+
+function pickViews(v) {
+  const n = v?.view_count ?? v?.viewCount ?? v?.short_view_count ?? v?.shortViewCount;
+  if (typeof n === 'number') return n;
+  const t = v?.views?.text || v?.view_count_text || v?.short_view_count_text;
+  if (t) {
+    const num = Number(String(t).replace(/[^\d]/g, '')); // "123,456 views" → 123456
+    return Number.isFinite(num) ? num : null;
+  }
+  return null;
+}
+
+function publishedTextToHours(txt) {
+  if (!txt) return Infinity;
+  const s = String(txt).toLowerCase();
+  const m = s.match(/(\d+)\s*(second|minute|hour|day|week|month|year)s?/);
+  if (!m) return Infinity;
+  const n = parseInt(m[1], 10) || 0;
+  const u = m[2];
+  const H = { second: 1/3600, minute: 1/60, hour: 1, day: 24, week: 24*7, month: 24*30, year: 24*365 }[u] || Infinity;
+  return n * H;
+}
+
+const thumb = id => `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
