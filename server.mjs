@@ -48,6 +48,7 @@ app.get("/shorts/search", async (req, res) => {
 });
 
 // 2) 트렌딩 → Shorts (탭 전환 시도 + 선반 스캔 fallback)
+// 2) 트렌딩(강화판): Shorts 탭 시도 → 선반 스캔 → 안 되면 검색 기반 대체
 app.get("/shorts/trending", async (req, res) => {
   try {
     const gl = (req.query.region || "US").toString().toUpperCase();
@@ -56,29 +57,31 @@ app.get("/shorts/trending", async (req, res) => {
 
     let itemsRaw = [];
 
-    // 1) 트렌딩 화면에서 "Shorts" 탭/필터 강제 적용
+    // (A) 트렌딩 화면에서 Shorts 탭/필터 강제 적용
     if (typeof trending?.applyContentTypeFilter === "function") {
       try {
         const tShorts = await trending.applyContentTypeFilter("Shorts");
         itemsRaw = tShorts?.items ?? tShorts?.videos ?? [];
-      } catch (_) { /* ignore */ }
+      } catch {}
     }
 
-    // 2) 그래도 비면: 선반(shelf) 전체에서 'Shorts' 성격 아이템만 추출
+    // (B) 아직도 없으면: 선반(shelf) 전부 긁고 쇼츠만 추림
     if (!itemsRaw?.length) {
       const shelves = trending?.contents ?? trending?.sections ?? trending?.items ?? [];
-      const flat = [];
+      const pool = [];
       for (const s of shelves) {
-        const title = (s?.title?.text ?? s?.title ?? "").toString();
-        const pool  = s?.contents ?? s?.items ?? [];
-        // 'Shorts' 선반이면 우선적으로 담고, 아니어도 전체를 스캔
-        if (/shorts/i.test(title) || s?.is_reel_shelf) {
-          flat.push(...pool);
-        } else {
-          flat.push(...pool);
-        }
+        const arr = s?.contents ?? s?.items ?? [];
+        pool.push(...arr);
       }
-      itemsRaw = flat;
+      itemsRaw = pool.filter(isShortLike);
+    }
+
+    // (C) 그래도 비면: 검색 기반 대체(지역은 gl 적용됨)
+    if (!itemsRaw?.length) {
+      const search = await y.search("#shorts");
+      let r = search;
+      if (search?.applyFilter) { try { r = await search.applyFilter("Shorts"); } catch {} }
+      itemsRaw = (r?.results ?? r ?? []).filter(isShortLike).slice(0, 60);
     }
 
     const items = (itemsRaw || [])
@@ -91,6 +94,7 @@ app.get("/shorts/trending", async (req, res) => {
     res.status(500).json({ error: String(e) });
   }
 });
+
 
 app.get("/shorts/by-channel", async (req, res) => {
   try {
