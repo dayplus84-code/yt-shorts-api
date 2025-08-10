@@ -55,15 +55,19 @@ app.get("/shorts/search", async (req, res) => {
 
 // 2) 트렌딩 → Shorts (탭 전환 시도 + 선반 스캔 fallback)
 // 2) 트렌딩(강화판): Shorts 탭 시도 → 선반 스캔 → 안 되면 검색 기반 대체
+// 2) 트렌딩(강화): Shorts 탭 시도 → 선반 스캔 → 검색백업 + 필터(hours/minViews)
 app.get("/shorts/trending", async (req, res) => {
   try {
     const gl = (req.query.region || "US").toString().toUpperCase();
-    const y  = await yt(gl);
+    const hours = Number(req.query.hours || 48);       // ← 기본 48시간
+    const minViews = Number(req.query.minViews || 0);  // ← 기본 제한 없음
+
+    const y = await yt(gl);
     const trending = await y.getTrending();
 
     let itemsRaw = [];
 
-    // (A) 트렌딩 화면에서 Shorts 탭/필터 강제 적용
+    // A. Shorts 탭/필터
     if (typeof trending?.applyContentTypeFilter === "function") {
       try {
         const tShorts = await trending.applyContentTypeFilter("Shorts");
@@ -71,7 +75,7 @@ app.get("/shorts/trending", async (req, res) => {
       } catch {}
     }
 
-    // (B) 아직도 없으면: 선반(shelf) 전부 긁고 쇼츠만 추림
+    // B. 선반(shelf) 전체에서 쇼츠만 추림
     if (!itemsRaw?.length) {
       const shelves = trending?.contents ?? trending?.sections ?? trending?.items ?? [];
       const pool = [];
@@ -82,18 +86,23 @@ app.get("/shorts/trending", async (req, res) => {
       itemsRaw = pool.filter(isShortLike);
     }
 
-    // (C) 그래도 비면: 검색 기반 대체(지역은 gl 적용됨)
+    // C. 그래도 비면: 검색 기반 백업
     if (!itemsRaw?.length) {
       const search = await y.search("#shorts");
       let r = search;
       if (search?.applyFilter) { try { r = await search.applyFilter("Shorts"); } catch {} }
-      itemsRaw = (r?.results ?? r ?? []).filter(isShortLike).slice(0, 60);
+      itemsRaw = (r?.results ?? r ?? []).filter(isShortLike).slice(0, 120);
     }
 
+    // 매핑 + 필터 + 정렬
     const items = (itemsRaw || [])
       .filter(isShortLike)
       .map(v => mapVideo(v, gl))
-      .filter(v => v.videoId);
+      .filter(v => v.videoId)
+      .filter(v => (v.views || 0) >= minViews)
+      .filter(v => v.ageHours !== Infinity && v.ageHours <= hours)
+      .sort((a,b) => (b.views||0) - (a.views||0))
+      .slice(0, 120);
 
     res.json(items);
   } catch (e) {
