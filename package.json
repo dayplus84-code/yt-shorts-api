@@ -2,7 +2,9 @@
   "name": "yt-shorts-api",
   "type": "module",
   "private": true,
-  "scripts": { "start": "node server.mjs" },
+  "scripts": {
+    "start": "node server.mjs"
+  },
   "dependencies": {
     "express": "^4.19.2",
     "cors": "^2.8.5",
