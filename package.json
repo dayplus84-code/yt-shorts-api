@@ -9,6 +9,6 @@
     "express": "^4.19.2",
     "cors": "^2.8.5",
     "compression": "^1.7.4",
-    "youtubei.js": "^10.9.0"
+    "youtubei.js": "^10.8.0"
   }
 }
